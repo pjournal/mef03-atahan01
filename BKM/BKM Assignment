@@ -1,0 +1,135 @@
+---
+title: "BKM"
+author: "Atahan Şenşatar"
+date: "14 11 2019"
+
+---
+
+# Get Data and Prepare for Analysis
+
+We will get our data from https://bkm.com.tr/secilen-aya-ait-sektorel-gelisim/ which is given data table 
+
+#### First step Libraries
+```{r}
+library(rvest)
+library(lubridate)
+library(ggplot2)
+library(tidyverse)
+library(tidyverse)
+```
+
+#### Collecting links from website according our date request
+
+We will change month and year sections in link with for loop and create a list.We will collect between 2018-2019(24 month)
+
+```{r}
+x <- list()
+for (i in 18:19){
+  for (j in 1:12) {
+    x[[paste0("20",i,".",j)]]<-paste0("https://bkm.com.tr/secilen-aya-ait-sektorel-gelisim/?filter_year=20",i,"&filter_month=",j,"&List=Listele")
+  }
+}
+
+head(x,n=2)
+```
+
+#### Create blank Dataframe for our main work field
+```{r}
+DF <- data.frame()
+```
+
+# Creating Civilized Dataframe
+
+In this part we will download our data link by link read it with rvest clean and bind into DF.
+
+That chunk will give warning about LHS because our data frame contain NA's
+
+
+
+```{r}
+for (i in seq_along(x)){
+  html_monthly <- read_html(x[[i]])
+  temp_df <- html_table(html_monthly,fill=T)[[4]]
+  temp_df <- temp_df[-c(1,2,28,29),]
+  temp_df$date <- names(x)[i]
+  DF <- bind_rows(DF,temp_df)
+}
+
+```
+
+#### Remove NA's from our dataframes
+We don't have data after 2019.06 let's remove NA's
+```{r}
+DF <- DF[complete.cases(DF),]
+```
+
+#### Date formatting
+Our date column structure is chr we have to convert the date format for arranging
+```{r}
+DF$date <- ymd(DF$date,truncated = 1)
+```
+
+#### Column names setup
+```{r}
+colnames(DF) <- c("segment","n_cc","n_dc","sum_cc","sum_dc","date")
+
+print(head(DF))
+```
+
+#### Character format and punctuation arrangement
+In our dataframe current amounts format is chars and seperated with commas.We will change commas and formats for use in analysis
+
+```{r}
+DF$sum_cc <- gsub("[,]","",DF$sum_cc)
+DF$sum_dc <- gsub("[,]","",DF$sum_dc)
+
+DF$sum_cc <- as.numeric(as.character(DF$sum_cc))
+DF$sum_dc <- as.numeric(as.character(DF$sum_dc))
+
+print(head(DF))
+```
+
+
+# Some Analysis and Plots
+First analysis i want to see the effect of dollar event in July 2018 on rent-a car services combined credit card and debit card
+
+```{r}
+rent_car_analysis <- DF %>%
+  arrange(date) %>% 
+  filter(segment %in% "ARABA KİRALAMA")%>%
+  mutate(TOTAL = rowSums(.[4:5]))%>%
+  select(segment,date,TOTAL)
+
+
+rent_car_analysis
+```
+Let's look in line graph
+
+```{r}
+ggplot(rent_car_analysis,aes(x=date,y=TOTAL))+
+  geom_line()
+```
+
+It seems a sharp fall after July 2018
+
+Let's look air ticket spending
+
+```{r}
+air_ticket_analysis <- DF %>%
+  arrange(date) %>% 
+  filter(segment %in% "HAVAYOLLARI")%>%
+  mutate(TOTAL = rowSums(.[4:5]))%>%
+  select(segment,date,TOTAL)
+
+ggplot(air_ticket_analysis,aes(x=date,y=TOTAL))+
+  geom_line()
+```
+
+
+It doesn't look like there is a significant change on air tickets
+
+
+
+
+
+
